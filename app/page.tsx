@@ -52,7 +52,7 @@ export default async function PipelinePage() {
       {/* Header */}
       <header className={styles.header}>
         <div className={styles.headerLeft}>
-          <span className={styles.headerNum}>02</span>
+          /*<span className={styles.headerNum}>02</span>*/
           <div>
             <h1 className={styles.headerTitle}>Sales Pipeline</h1>
             <p className={styles.headerSub}>Active Prospects · Status</p>
