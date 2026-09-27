@@ -1,0 +1,33 @@
+:root {
+  --lav-deep:  #2D1B69;
+  --lav-rich:  #4A2FA0;
+  --lav-mid:   #7B5FC4;
+  --lav-soft:  #A98CE8;
+  --lav-pale:  #C8B5F5;
+  --gold:      #F0C040;
+  --bg:        #F7F5FF;
+  --card:      #FFFFFF;
+  --text:      #1A1030;
+  --muted:     #6B5B9E;
+  --border:    #DDD6F5;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', Calibri, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* Stage pill colours */
+.pill { display:inline-block; font-size:10px; font-weight:600; padding:3px 9px;
+        border-radius:12px; white-space:nowrap; }
+.pill-Hot     { background:#EAF5EA; color:#1A6B1A; }
+.pill-Active  { background:#EDE8FF; color:#4A2FA0; }
+.pill-Warm    { background:#FFF3E0; color:#9B5E00; }
+.pill-Early   { background:#F2F2F2; color:#555; }
+.pill-Stalled { background:#FFF0E0; color:#8B4500; }
+.pill-Lost    { background:#FEE8E8; color:#A32D2D; }
+.pill-New     { background:#FFF8DC; color:#7A5C00; }
