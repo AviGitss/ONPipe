@@ -55,6 +55,80 @@ function FunnelBar({ stage, count, value, maxCount }: { stage:string; count:numb
   );
 }
 
+// ── Bar chart component (SVG-based) ──
+type BarDatum = { label: string; value: number; color: string; sub?: string };
+
+function BarChart({ data, title, valuePrefix="₹", valueSuffix=" Cr", height=220 }: {
+  data: BarDatum[]; title: string; valuePrefix?: string; valueSuffix?: string; height?: number;
+}) {
+  const [hovered, setHovered] = useState<number|null>(null);
+  if (!data.length) return null;
+  const maxVal = Math.max(...data.map(d=>d.value), 0.01);
+  const barW = Math.min(56, Math.floor(560 / data.length) - 12);
+  const chartH = height - 60; // reserve space for labels below
+  const svgW = Math.max(data.length * (barW + 16) + 40, 300);
+
+  return (
+    <div style={{ background:"#fff",border:"1.5px solid #EDE8FF",borderRadius:10,padding:"20px 24px" }}>
+      <div style={{ fontSize:13,fontWeight:700,color:"#2D1B69",marginBottom:16 }}>{title}</div>
+      <div style={{ overflowX:"auto" }}>
+        <svg width={svgW} height={height} style={{ display:"block" }}>
+          {/* y-axis gridlines */}
+          {[0,0.25,0.5,0.75,1].map(f=>{
+            const y = Math.round(chartH * (1-f));
+            const val = maxVal * f;
+            return (
+              <g key={f}>
+                <line x1={36} x2={svgW-8} y1={y} y2={y} stroke="#EDE8FF" strokeWidth={1}/>
+                <text x={32} y={y+4} textAnchor="end" fontSize={9} fill="#A98CE8">
+                  {val>=1 ? val.toFixed(1) : val.toFixed(2)}
+                </text>
+              </g>
+            );
+          })}
+          {/* bars */}
+          {data.map((d,i)=>{
+            const barH = Math.max(2, Math.round((d.value/maxVal)*chartH));
+            const x = 40 + i*(barW+14);
+            const y = chartH - barH;
+            const isHov = hovered===i;
+            return (
+              <g key={i}
+                onMouseEnter={()=>setHovered(i)}
+                onMouseLeave={()=>setHovered(null)}
+                style={{ cursor:"pointer" }}
+              >
+                <rect x={x} y={y} width={barW} height={barH}
+                  fill={d.color} rx={4} opacity={isHov?1:0.85}/>
+                {/* value label on hover */}
+                {isHov&&(
+                  <g>
+                    <rect x={x-4} y={y-28} width={barW+8} height={22} rx={4} fill="#2D1B69"/>
+                    <text x={x+barW/2} y={y-13} textAnchor="middle" fontSize={10} fill="#fff" fontWeight="bold">
+                      {valuePrefix}{d.value.toFixed(2)}{valueSuffix}
+                    </text>
+                  </g>
+                )}
+                {/* x-axis label */}
+                <text x={x+barW/2} y={chartH+14} textAnchor="middle" fontSize={10} fill="#2D1B69" fontWeight="600">
+                  {d.label.length>10 ? d.label.slice(0,9)+"…" : d.label}
+                </text>
+                {d.sub&&(
+                  <text x={x+barW/2} y={chartH+26} textAnchor="middle" fontSize={9} fill="#7B5FC4">
+                    {d.sub}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+          {/* x axis line */}
+          <line x1={36} x2={svgW-8} y1={chartH} y2={chartH} stroke="#EDE8FF" strokeWidth={1.5}/>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 export default function AnalyticsPage() {
   const sb = getSupabaseBrowser();
   const [rows, setRows] = useState<PipelineRow[]>([]);
@@ -93,7 +167,6 @@ export default function AnalyticsPage() {
   const hotVal    = hot.reduce((s,r)=>s+Number(r.deal_value),0);
   const avgConf   = active.length ? Math.round(active.reduce((s,r)=>s+r.confidence,0)/active.length) : 0;
   const weightedPipeline = active.reduce((s,r)=>s+Number(r.deal_value)*(r.confidence/100),0);
-  const winRate   = rows.length ? Math.round((hot.length/rows.length)*100) : 0;
 
   // by stage
   const byStage = STAGE_ORDER.map(st=>({
@@ -109,6 +182,31 @@ export default function AnalyticsPage() {
   // by stage value for bar
   const stageVals = byStage.filter(b=>b.value>0);
   const maxVal    = Math.max(...stageVals.map(b=>b.value),0.01);
+
+  // ── chart data ──
+  const top5ChartData: BarDatum[] = topDeals.map(r=>({
+    label: r.prospect,
+    value: Number(r.deal_value),
+    color: STAGE_COLOR[r.stage]??"#7B5FC4",
+    sub: r.stage,
+  }));
+
+  const stageChartData: BarDatum[] = byStage
+    .filter(b=>b.value>0)
+    .map(b=>({
+      label: b.stage,
+      value: b.value,
+      color: STAGE_COLOR[b.stage]??"#7B5FC4",
+      sub: `${b.count} deal${b.count!==1?"s":""}`,
+    }));
+
+  const stageCountChartData: BarDatum[] = byStage
+    .filter(b=>b.count>0)
+    .map(b=>({
+      label: b.stage,
+      value: b.count,
+      color: STAGE_COLOR[b.stage]??"#7B5FC4",
+    }));
 
   return (
     <div style={{ fontFamily:"DM Sans, Calibri, sans-serif", minHeight:"100vh", background:"#F7F5FF" }}>
@@ -137,7 +235,33 @@ export default function AnalyticsPage() {
           <KPI label="Lost value" value={`₹${lostVal.toFixed(2)} Cr`} sub={`${lost.length} deals lost`}/>
         </div>
 
-        {/* Two columns */}
+        {/* ── Charts row ── */}
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20 }}>
+          <BarChart
+            title="Top 5 active deals by value (₹ Cr)"
+            data={top5ChartData}
+            valuePrefix="₹"
+            valueSuffix=" Cr"
+          />
+          <BarChart
+            title="Pipeline value by stage (₹ Cr)"
+            data={stageChartData}
+            valuePrefix="₹"
+            valueSuffix=" Cr"
+          />
+        </div>
+
+        <div style={{ marginBottom:20 }}>
+          <BarChart
+            title="Deal count by stage"
+            data={stageCountChartData}
+            valuePrefix=""
+            valueSuffix=" deals"
+            height={180}
+          />
+        </div>
+
+        {/* Two columns — funnel + value bars */}
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20 }}>
 
           {/* Funnel by count */}
