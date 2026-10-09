@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+"use client";<<<<<<< HEAD
 import { createSupabaseServer } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import { PipelineRow } from "@/lib/supabase";
