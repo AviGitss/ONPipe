@@ -10,11 +10,7 @@ export const revalidate = 60;
 const STAGE_ORDER = ["Hot", "Active", "Warm", "Early", "Stalled", "New", "Lost"];
 
 function ConfidenceBar({ value }: { value: number }) {
-  const color =
-    value >= 75 ? "#1A6B1A" :
-    value >= 50 ? "#4A2FA0" :
-    value >= 25 ? "#9B5E00" :
-    "#BBBBBB";
+  const color = value >= 75 ? "#1A6B1A" : value >= 50 ? "#4A2FA0" : value >= 25 ? "#9B5E00" : "#BBBBBB";
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
       <div style={{ width: 64, height: 8, background: "#DDD6F5", borderRadius: 4, overflow: "hidden" }}>
