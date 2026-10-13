@@ -11,13 +11,32 @@ export default function ResetPasswordPage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Supabase puts the session in the URL hash after redirect
     const supabase = getSupabaseBrowser();
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+
+    // Handle the hash fragment Supabase appends to the redirect URL
+    // e.g. /auth/reset#access_token=...&type=recovery
+    const hash = window.location.hash;
+    if (hash.includes("type=recovery") || hash.includes("access_token")) {
+      // Exchange the token — Supabase SSR client does this automatically
+      // on getSession, which triggers onAuthStateChange
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) {
+          setReady(true);
+        }
+      });
+    }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && hash.includes("type=recovery"))) {
+        setReady(true);
+      }
+      // If already signed in via recovery token
+      if (session && hash.includes("recovery")) {
         setReady(true);
       }
     });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   async function handleReset(e: React.FormEvent) {
@@ -32,7 +51,8 @@ export default function ResetPasswordPage() {
       setError(updateError.message);
     } else {
       setDone(true);
-      setTimeout(() => { window.location.href = "/"; }, 2000);
+      await supabase.auth.signOut();
+      setTimeout(() => { window.location.href = "/login"; }, 2000);
     }
     setLoading(false);
   }
@@ -49,24 +69,32 @@ export default function ResetPasswordPage() {
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg, #4A2FA0 0%, #7B5FC4 100%)", marginBottom: 16, fontSize: 22, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>ON</div>
           <div style={{ color: "#C8B5F5", fontSize: 13, letterSpacing: "0.12em", textTransform: "uppercase" }}>Open Netrikkan</div>
+          <div style={{ color: "#7B5FC4", fontSize: 11, letterSpacing: "0.08em", marginTop: 4 }}>Sales Pipeline · Internal</div>
         </div>
 
         {done ? (
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>✅</div>
             <div style={{ color: "#4ADE80", fontSize: 15, fontWeight: 600 }}>Password updated!</div>
-            <div style={{ color: "#7B5FC4", fontSize: 13, marginTop: 8 }}>Redirecting you to the pipeline…</div>
+            <div style={{ color: "#7B5FC4", fontSize: 13, marginTop: 8 }}>Redirecting to sign in…</div>
           </div>
+
         ) : !ready ? (
-          <div style={{ textAlign: "center", color: "#7B5FC4", fontSize: 14 }}>
-            Verifying reset link…
+          <div style={{ textAlign: "center" }}>
+            <div style={{ color: "#7B5FC4", fontSize: 14, marginBottom: 16 }}>Verifying reset link…</div>
+            <div style={{ color: "#4A2FA0", fontSize: 12 }}>
+              If this takes too long,{" "}
+              <a href="/login" style={{ color: "#A98CE8", textDecoration: "underline" }}>go back to sign in</a>
+              {" "}and try again.
+            </div>
           </div>
+
         ) : (
           <form onSubmit={handleReset} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ color: "#C8B5F5", fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Set new password</div>
             <div>
               <label style={{ display: "block", color: "#A98CE8", fontSize: 12, letterSpacing: "0.08em", marginBottom: 6 }}>NEW PASSWORD</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Min 6 characters" style={inputStyle} />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Min 6 characters" style={inputStyle} autoFocus />
             </div>
             <div>
               <label style={{ display: "block", color: "#A98CE8", fontSize: 12, letterSpacing: "0.08em", marginBottom: 6 }}>CONFIRM PASSWORD</label>
