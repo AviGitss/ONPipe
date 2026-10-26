@@ -6,7 +6,7 @@ import type { PipelineRow } from "@/lib/supabase";
 import Link from "next/link";
 import styles from "./page.module.css";
 
-const STAGES = ["Hot","Active","Warm","Early","Stalled","New","Lost"] as const;
+const STAGES = ["Won","Hot","Active","Warm","Early","Stalled","New","Lost"] as const;
 const STAGE_ORDER = [...STAGES];
 
 function ConfidenceBar({ value }: { value: number }) {
@@ -165,7 +165,8 @@ export default function PipelinePage() {
   const sorted = [...rows].sort(
     (a,b)=>STAGE_ORDER.indexOf(a.stage)-STAGE_ORDER.indexOf(b.stage)||a.sort_order-b.sort_order
   );
-  const activeValue = rows.filter(r=>r.stage!=="Lost").reduce((s,r)=>s+Number(r.deal_value),0);
+  const activeValue = rows.filter(r=>r.stage!=="Lost"&&r.stage!=="Won").reduce((s,r)=>s+Number(r.deal_value),0);
+  const wonValue    = rows.filter(r=>r.stage==="Won").reduce((s,r)=>s+Number(r.deal_value),0);
   const totalValue  = rows.reduce((s,r)=>s+Number(r.deal_value),0);
   const newCount    = rows.filter(r=>r.is_new).length;
   const updCount    = rows.filter(r=>r.updated_this_week).length;
@@ -204,6 +205,7 @@ export default function PipelinePage() {
       <div className={styles.summaryBar}>
         <div className={styles.summaryItem}><span className={styles.summaryVal}>{rows.length}</span><span className={styles.summaryLabel}>Prospects</span></div>
         <div className={styles.summaryItem}><span className={styles.summaryVal}>₹{activeValue.toFixed(2)} Cr</span><span className={styles.summaryLabel}>Active pipeline</span></div>
+        <div className={styles.summaryItem} style={{ background:"rgba(180,140,0,0.15)", borderRadius:8, padding:"4px 12px" }}><span className={styles.summaryVal} style={{ color:"#C8A000" }}>🏆 ₹{wonValue.toFixed(2)} Cr</span><span className={styles.summaryLabel}>Won</span></div>
         <div className={styles.summaryItem}><span className={styles.summaryVal}>₹{totalValue.toFixed(2)} Cr</span><span className={styles.summaryLabel}>Total incl. lost</span></div>
         <div className={styles.summaryItem}><span className={styles.summaryVal}>{newCount} New</span><span className={styles.summaryLabel}>Added this cycle</span></div>
         <div className={styles.summaryItem}><span className={styles.summaryVal}>{updCount} ★</span><span className={styles.summaryLabel}>Updated this week</span></div>
@@ -240,7 +242,7 @@ export default function PipelinePage() {
               {sorted.map(row=>{
                 const isEditing = !adding && editing?.id===row.id;
                 return (
-                  <tr key={row.id} className={row.is_new?styles.rowNew:row.stage==="Lost"?styles.rowLost:""}>
+                  <tr key={row.id} className={row.stage==="Won"?styles.rowWon:row.is_new?styles.rowNew:row.stage==="Lost"?styles.rowLost:""}>
                     {isEditing&&editing?(
                       <>
                         <td colSpan={5} style={{ padding:"12px 14px" }}>
