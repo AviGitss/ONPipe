@@ -24,6 +24,7 @@ body {
 /* Stage pill colours */
 .pill { display:inline-block; font-size:10px; font-weight:600; padding:3px 9px;
         border-radius:12px; white-space:nowrap; }
+.pill-Won     { background:#FFF3C0; color:#7A5C00; border:1px solid #C8A000; }
 .pill-Hot     { background:#EAF5EA; color:#1A6B1A; }
 .pill-Active  { background:#EDE8FF; color:#4A2FA0; }
 .pill-Warm    { background:#FFF3E0; color:#9B5E00; }

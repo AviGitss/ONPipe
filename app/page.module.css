@@ -58,6 +58,8 @@
 
 .table td { padding: 10px 14px; vertical-align: middle; }
 
+.rowWon  { background: #FFFBEB; border-left: 4px solid #C8A000 !important; }
+.rowWon:hover { background: #FFF3C0 !important; }
 .rowNew  { background: #FFFBE8; }
 .rowNew:hover { background: #FFF3C0 !important; }
 .rowLost { opacity: 0.65; }

@@ -12,7 +12,7 @@ export type PipelineRow = {
   comment: string | null;
   confidence: number;
   deal_value: number;
-  stage: "Hot" | "Active" | "Warm" | "Early" | "Stalled" | "Lost" | "New";
+  stage: "Won" | "Hot" | "Active" | "Warm" | "Early" | "Stalled" | "Lost" | "New";
   is_new: boolean;
   updated_this_week: boolean;
   sort_order: number;
