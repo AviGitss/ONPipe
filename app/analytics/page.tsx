@@ -5,7 +5,7 @@ import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import type { PipelineRow } from "@/lib/supabase";
 import Link from "next/link";
 
-const STAGE_ORDER = ["Hot","Active","Warm","Early","Stalled","New","Lost"] as const;
+const STAGE_ORDER = ["Won","Hot","Active","Warm","Early","Stalled","New","Lost"] as const;
 
 const STAGE_COLOR: Record<string,string> = {
   Hot:"#B91C1C", Active:"#4A2FA0", Warm:"#9B5E00",
