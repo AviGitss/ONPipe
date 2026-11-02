@@ -57,6 +57,14 @@ const PLANS: Plan[] = [
     roles: [{ role: "BD/partnerships lead", type: "P", adds: [0, 0, 0, 0, 0, 0, 0, 0, 1] }] },
 ];
 
+// Months from today a deal at each stage is assumed to start, used to place deals with no role plan
+const STAGE_MONTHS: Record<string, number> = { Won: 0, Hot: 1, Active: 2, Warm: 3, Early: 5, New: 6, Stalled: 8, Lost: 99 };
+const MONTH0 = new Date(2026, 10, 1); // Nov-26
+function qLabel(m: number) {
+  const d = new Date(MONTH0.getFullYear(), MONTH0.getMonth() + m, 1);
+  return `Q${Math.floor(d.getMonth() / 3) + 1} FY${String(d.getFullYear()).slice(2)}`;
+}
+
 const FALLBACK_COLORS = ["#6B5B9E", "#9B8BC9", "#B9A7E8", "#D8C9F7", "#5A4300", "#8B6FD0", "#3C2A85"];
 
 type Item = {
@@ -72,6 +80,7 @@ const f1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1);
 
 export default function HCPlanner({ rows }: { rows: PipelineRow[] }) {
   const [thr, setThr] = useState(90);
+  const [team, setTeam] = useState(4);        // people on the team today
   const [perCr, setPerCr] = useState(2);       // people per Rs Cr for deals with no role plan
   const [startIdx, setStartIdx] = useState(2); // month index those people start (Jan-27)
   const [over, setOver] = useState<Record<string, number>>({});
@@ -168,6 +177,35 @@ export default function HCPlanner({ rows }: { rows: PipelineRow[] }) {
     );
   }
 
+  // quarter panels: every live customer, grouped by the quarter it lands or has hires
+  const quarters = (() => {
+    const groups: { label: string; months: number[] }[] = [];
+    MONTHS.forEach((_, m) => {
+      const l = qLabel(m);
+      const g = groups.find(x => x.label === l);
+      if (g) g.months.push(m); else groups.push({ label: l, months: [m] });
+    });
+    const landing = (i: Item) => {
+      const f = i.tot.findIndex(x => x > 0);
+      return f >= 0 ? f : Math.min(9, STAGE_MONTHS[i.stage] ?? 9);
+    };
+    return groups.map(g => {
+      const rowsQ = items.map(i => {
+        const lands = g.months.includes(landing(i));
+        const adds = g.months.reduce((s, m) => s + (i.tot[m] * conf(i)) / 100, 0);
+        return { i, lands, adds, wv: lands ? (i.value * conf(i)) / 100 : 0 };
+      }).filter(r => r.lands || r.adds > 0).sort((a, b) => b.wv - a.wv || b.adds - a.adds);
+      const last = g.months[g.months.length - 1];
+      return {
+        label: g.label, rows: rowsQ,
+        wrev: rowsQ.reduce((s, r) => s + r.wv, 0),
+        hire: rowsQ.reduce((s, r) => s + r.adds, 0),
+        after: team + exp[last],
+        target: g.months.includes(4), // Mar-27
+      };
+    });
+  })();
+
   // chart
   const W = 900, H = 280, L = 34, R = 10, T = 16, B = 28;
   const mx = Math.max(8, Math.ceil(Math.max(...full, 1) / 4) * 4);
@@ -180,6 +218,8 @@ export default function HCPlanner({ rows }: { rows: PipelineRow[] }) {
       <div style={{ ...card, display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center", background: "#F7F5FF" }}>
         <label style={{ fontSize: 12, color: "#6B5B9E" }}>Committed at or above{" "}
           <input style={inp} type="number" min={0} max={100} step={5} value={thr} onChange={e => setThr(Number(e.target.value) || 0)} /> %</label>
+        <label style={{ fontSize: 12, color: "#6B5B9E" }}>Current team{" "}
+          <input style={inp} type="number" min={0} value={team} onChange={e => setTeam(Number(e.target.value) || 0)} /></label>
         <label style={{ fontSize: 12, color: "#6B5B9E" }}>Deals with no role plan: people per Rs Cr{" "}
           <input style={inp} type="number" min={0} step={0.5} value={perCr} onChange={e => setPerCr(Number(e.target.value) || 0)} /></label>
         <label style={{ fontSize: 12, color: "#6B5B9E" }}>starting{" "}
@@ -206,6 +246,51 @@ export default function HCPlanner({ rows }: { rows: PipelineRow[] }) {
             <div style={{ fontSize: 11, color: hi ? "#C8B5F5" : "#6B5B9E" }}>{n}</div>
           </div>
         ))}
+      </div>
+
+      {/* quarter panels: open by default, every customer listed */}
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#2D1B69", marginBottom: 4 }}>By quarter, with every customer</div>
+        <div style={{ fontSize: 11, color: "#6B5B9E", marginBottom: 10 }}>
+          Target: Rs 2 Cr by Mar 2027 · {team} on the team today · a customer shows in the quarter it lands, and again in any later quarter where it needs hires. Value shown is deal value x confidence.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 16, alignItems: "start" }}>
+          {quarters.map(q => (
+            <div key={q.label} style={{ ...card, padding: 16, minWidth: 0, border: q.target ? "2px solid #C8A000" : "1.5px solid #DDD6F5", background: q.hire > 0 ? "#FFF8F0" : "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#2D1B69" }}>{q.label}{q.target ? " 🎯" : ""}</span>
+                {q.hire > 0
+                  ? <span style={{ fontSize: 10, background: "#FEE8E8", color: "#A32D2D", padding: "2px 7px", borderRadius: 10, fontWeight: 700 }}>+{f1(q.hire)} HC</span>
+                  : <span style={{ fontSize: 10, background: "#EAF5EA", color: "#1A6B1A", padding: "2px 7px", borderRadius: 10, fontWeight: 600 }}>Within team</span>}
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: q.hire > 0 ? "#9B5E00" : "#4A2FA0" }}>Rs {q.wrev.toFixed(2)} Cr</div>
+              <div style={{ fontSize: 10, color: "#A98CE8", marginBottom: 10 }}>Weighted pipeline landing this quarter</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <div style={{ background: "#F7F5FF", borderRadius: 6, padding: "6px 10px" }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "#4A2FA0" }}>{f1(q.after)}</div>
+                  <div style={lab}>HC needed</div>
+                </div>
+                <div style={{ background: q.hire > 0 ? "#FEE8E8" : "#EDE8FF", borderRadius: 6, padding: "6px 10px" }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: q.hire > 0 ? "#A32D2D" : "#4A2FA0" }}>{q.hire > 0 ? `+${f1(q.hire)}` : team}</div>
+                  <div style={lab}>{q.hire > 0 ? "Hire now" : "Current team"}</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 12, borderTop: "1px solid #DDD6F5", paddingTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                {q.rows.length === 0 && <div style={{ fontSize: 11, color: "#A98CE8" }}>No customers in this quarter.</div>}
+                {q.rows.map(r => (
+                  <div key={r.i.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, color: "#2D1B69", fontWeight: 500, minWidth: 0, overflowWrap: "anywhere" }}>{r.i.label}</span>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flex: "none" }}>
+                      {r.adds > 0 && <span style={{ fontSize: 10, color: "#A32D2D", fontWeight: 700 }}>+{f1(r.adds)}</span>}
+                      <span className={`pill pill-${r.i.stage}`}>{r.i.stage}</span>
+                      <span style={{ fontSize: 11, color: "#6B5B9E", fontWeight: 600, width: 40, textAlign: "right" }}>{r.lands ? r.wv.toFixed(2) : "-"}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* tiles: always visible */}
