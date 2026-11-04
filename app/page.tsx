@@ -339,7 +339,7 @@ export default function PipelinePage() {
       {/* ── HC PROJECTION TAB ── */}
       {tab==="hc"&&(
         <div className={styles.wrap}>
-          <HCPlanner rows={rows}/>
+          <HCPlanner rows={rows} onRefresh={load} canEdit={canEdit}/>
         </div>
       )}
 

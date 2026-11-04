@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { PipelineRow } from "@/lib/supabase";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { MONTHS, PLANS, TYPE_LABEL, type EmpType } from "@/lib/plans";
 
 /**
@@ -10,7 +11,6 @@ import { MONTHS, PLANS, TYPE_LABEL, type EmpType } from "@/lib/plans";
  * rule of thumb (editable on screen) so a new project always shows up.
  */
 
-const STAGE_MONTHS: Record<string, number> = { Won: 0, Hot: 1, Active: 2, Warm: 3, Early: 5, New: 6, Stalled: 8, Lost: 99 };
 
 type Line = { role: string; skills: string; type: EmpType | "E"; adds: number[] };
 type Client = { id: string; label: string; stage: string; confidence: number; value: number; lines: Line[]; cum: number[]; core: boolean };
@@ -19,7 +19,14 @@ const cumulative = (a: number[]) => { let t = 0; return a.map(x => (t += x)); };
 const pad = (a: number[]) => { const r = a.slice(0, 10); while (r.length < 10) r.push(0); return r; };
 const f1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1);
 
-export default function HCPlanner({ rows }: { rows: PipelineRow[] }) {
+type Change = { id: number; code: string; client: string; role: string; to: string; why: string };
+
+export default function HCPlanner({ rows, onRefresh, canEdit }: { rows: PipelineRow[]; onRefresh?: () => Promise<void>; canEdit?: boolean }) {
+  const sb = getSupabaseBrowser();
+  const [refreshing, setRefreshing] = useState(false);
+  const [stamp, setStamp] = useState("");
+  const [changes, setChanges] = useState<Change[] | null>(null);
+  const [syncMsg, setSyncMsg] = useState("");
   const [thr, setThr] = useState(90);
   const [perCr, setPerCr] = useState(2);
   const [startIdx, setStartIdx] = useState(2);
@@ -51,6 +58,44 @@ export default function HCPlanner({ rows }: { rows: PipelineRow[] }) {
     return { clients: out, skipped: skip };
   }, [rows, perCr, startIdx]);
 
+  async function refresh() {
+    setRefreshing(true);
+    try { if (onRefresh) await onRefresh(); } finally {
+      setRefreshing(false);
+      setStamp(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
+    }
+  }
+
+  // Compare the requisitions with the pipeline and list what should change
+  async function previewSync() {
+    setSyncMsg("");
+    const { data, error } = await sb.from("requisitions").select("id,req_code,client,role,status");
+    if (error) { setSyncMsg(error.message); return; }
+    const byLabel = new Map(clients.map(c => [c.label, c]));
+    const out: Change[] = [];
+    (data ?? []).forEach((r: { id: number; req_code: string; client: string; role: string; status: string }) => {
+      const c = byLabel.get(r.client);
+      if (r.client === "Core") return;
+      if (!c && (r.status === "Planned" || r.status === "Open"))
+        out.push({ id: r.id, code: r.req_code, client: r.client, role: r.role, to: "On hold", why: "deal is no longer live in the pipeline" });
+      else if (c && r.status === "Planned" && c.confidence >= thr)
+        out.push({ id: r.id, code: r.req_code, client: r.client, role: r.role, to: "Open", why: `confidence ${c.confidence}% is at or above ${thr}%` });
+      else if (c && r.status === "Open" && c.confidence < thr)
+        out.push({ id: r.id, code: r.req_code, client: r.client, role: r.role, to: "Planned", why: `confidence ${c.confidence}% fell below ${thr}%` });
+    });
+    setChanges(out);
+    if (!out.length) setSyncMsg("Requisitions already match the pipeline.");
+  }
+  async function applySync() {
+    if (!changes) return;
+    for (const ch of changes) {
+      const { error } = await sb.from("requisitions").update({ status: ch.to }).eq("id", ch.id);
+      if (error) { setSyncMsg(error.message); return; }
+    }
+    setSyncMsg(`Updated ${changes.length} requisition${changes.length > 1 ? "s" : ""}. See the Requisitions tab.`);
+    setChanges(null);
+  }
+
   const full = MONTHS.map((_, m) => clients.reduce((s, c) => s + c.cum[m], 0));
   const exp = MONTHS.map((_, m) => clients.reduce((s, c) => s + (c.cum[m] * c.confidence) / 100, 0));
   const com = MONTHS.map((_, m) => clients.reduce((s, c) => s + (c.confidence >= thr || c.core ? c.cum[m] : 0), 0));
@@ -70,6 +115,10 @@ export default function HCPlanner({ rows }: { rows: PipelineRow[] }) {
   return (
     <div style={{ padding: "24px 0 48px", display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ ...card, display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center", background: "#F7F5FF", padding: 12 }}>
+        <button onClick={refresh} disabled={refreshing} style={{ padding: "7px 14px", background: "#4A2FA0", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: refreshing ? 0.6 : 1 }}>
+          {refreshing ? "Refreshing…" : "↻ Refresh from pipeline"}</button>
+        {stamp && <span style={{ fontSize: 11, color: "#6B5B9E" }}>Updated {stamp}</span>}
+        {canEdit && <button onClick={previewSync} style={{ padding: "7px 14px", background: "#fff", color: "#4A2FA0", border: "1px solid #4A2FA0", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Sync requisitions</button>}
         <label style={{ fontSize: 12, color: "#6B5B9E" }}>Committed at or above{" "}
           <input style={inp} type="number" min={0} max={100} step={5} value={thr} onChange={e => setThr(Number(e.target.value) || 0)} /> %</label>
         <label style={{ fontSize: 12, color: "#6B5B9E" }}>Deals with no role plan: people per Rs Cr{" "}
@@ -79,6 +128,22 @@ export default function HCPlanner({ rows }: { rows: PipelineRow[] }) {
             {MONTHS.map((m, k) => <option key={m} value={k}>{m}</option>)}
           </select></label>
       </div>
+
+      {(changes || syncMsg) && (
+        <div style={{ ...card, padding: 12, borderColor: "#C8A000" }}>
+          {changes && changes.length > 0 && (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#2D1B69", marginBottom: 6 }}>Requisition changes to make from the pipeline</div>
+              {changes.map(ch => <div key={ch.id} style={{ fontSize: 12, color: "#1A1030", padding: "2px 0" }}><b>{ch.code}</b> {ch.client}, {ch.role}: set to <b>{ch.to}</b> ({ch.why})</div>)}
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button onClick={applySync} style={{ padding: "6px 14px", background: "#4A2FA0", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Apply {changes.length} change{changes.length > 1 ? "s" : ""}</button>
+                <button onClick={() => { setChanges(null); setSyncMsg(""); }} style={{ padding: "6px 14px", background: "#EDE8FF", color: "#4A2FA0", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>Cancel</button>
+              </div>
+            </>
+          )}
+          {syncMsg && <div style={{ fontSize: 12, color: "#6B5B9E" }}>{syncMsg}</div>}
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
         {[["Hire against now", f1(com[9]), `people on deals at or above ${thr}%`, true],
