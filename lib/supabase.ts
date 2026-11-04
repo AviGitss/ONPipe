@@ -17,4 +17,8 @@ export type PipelineRow = {
   updated_this_week: boolean;
   sort_order: number;
   updated_at: string;
+  proposal_status?: "In preparation" | "Submitted" | "Contract pending" | "Won" | "Lost" | null;
+  likely_win_date?: string | null;
+  proposal_summary?: string | null;
+  logo_domain?: string | null;
 };
