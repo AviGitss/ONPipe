@@ -5,6 +5,7 @@ import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import type { PipelineRow } from "@/lib/supabase";
 import Link from "next/link";
 import HCPlanner from "@/components/HCPlanner";
+import Requisitions from "@/components/Requisitions";
 import styles from "./page.module.css";
 
 const STAGES = ["Won","Hot","Active","Warm","Early","Stalled","New","Lost"] as const;
@@ -85,7 +86,7 @@ export default function PipelinePage() {
   const [markingWon, setMarkingWon] = useState<number|null>(null);
   const [err, setErr]         = useState("");
   const [loading, setLoading] = useState(true);
-  const [tab, setTab]         = useState<"pipeline"|"hc">("pipeline");
+  const [tab, setTab]         = useState<"pipeline"|"hc"|"reqs">("pipeline");
 
   const load = useCallback(async () => {
     const { data } = await sb.from("pipeline").select("*").order("sort_order");
@@ -235,7 +236,8 @@ export default function PipelinePage() {
       {/* Tab bar */}
       <div style={{ background:"#fff", borderBottom:"1px solid #DDD6F5", display:"flex", paddingLeft:24 }}>
         <button style={tabBtn(tab==="pipeline")} onClick={()=>setTab("pipeline")}>📋 Pipeline</button>
-        <button style={tabBtn(tab==="hc")} onClick={()=>setTab("hc")}>👥 HC Projection & Planner</button>
+        <button style={tabBtn(tab==="hc")} onClick={()=>setTab("hc")}>👥 HC Projection</button>
+        <button style={tabBtn(tab==="reqs")} onClick={()=>setTab("reqs")}>📝 Requisitions</button>
       </div>
 
       {/* ── PIPELINE TAB ── */}
@@ -338,6 +340,13 @@ export default function PipelinePage() {
       {tab==="hc"&&(
         <div className={styles.wrap}>
           <HCPlanner rows={rows}/>
+        </div>
+      )}
+
+      {/* ── REQUISITIONS TAB ── */}
+      {tab==="reqs"&&(
+        <div className={styles.wrap}>
+          <Requisitions canEdit={canEdit}/>
         </div>
       )}
     </div>
