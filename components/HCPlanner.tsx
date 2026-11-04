@@ -17,7 +17,8 @@ type Client = { id: string; label: string; stage: string; confidence: number; va
 
 const cumulative = (a: number[]) => { let t = 0; return a.map(x => (t += x)); };
 const pad = (a: number[]) => { const r = a.slice(0, 10); while (r.length < 10) r.push(0); return r; };
-const f1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1);
+// headcount is always rounded up to a whole person
+const f1 = (x: number) => String(Math.ceil(x - 1e-9));
 
 type Change = { id: number; code: string; client: string; role: string; to: string; why: string };
 
@@ -97,7 +98,7 @@ export default function HCPlanner({ rows, onRefresh, canEdit }: { rows: Pipeline
   }
 
   const full = MONTHS.map((_, m) => clients.reduce((s, c) => s + c.cum[m], 0));
-  const exp = MONTHS.map((_, m) => clients.reduce((s, c) => s + (c.cum[m] * c.confidence) / 100, 0));
+  const exp = MONTHS.map((_, m) => Math.ceil(clients.reduce((s, c) => s + (c.cum[m] * c.confidence) / 100, 0) - 1e-9));
   const com = MONTHS.map((_, m) => clients.reduce((s, c) => s + (c.confidence >= thr || c.core ? c.cum[m] : 0), 0));
   const perMonth = (arr: number[]) => arr.map((v, m) => v - (m ? arr[m - 1] : 0));
 
