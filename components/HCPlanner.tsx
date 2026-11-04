@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { PipelineRow } from "@/lib/supabase";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import Proposals from "@/components/Proposals";
 import { MONTHS, PLANS, TYPE_LABEL, type EmpType } from "@/lib/plans";
 
 /**
@@ -157,6 +158,8 @@ export default function HCPlanner({ rows, onRefresh, canEdit }: { rows: Pipeline
           </div>
         ))}
       </div>
+
+      <Proposals rows={rows} canEdit={canEdit} onChanged={onRefresh} />
 
       <div style={card}>
         <div style={{ fontSize: 14, fontWeight: 700, color: "#2D1B69", marginBottom: 6 }}>New headcount needed, cumulative</div>
